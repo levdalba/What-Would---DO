@@ -1,0 +1,62 @@
+.analyze-page {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.analyze-header {
+    padding: 40px 20px;
+    color: white;
+}
+
+.analyze-header .container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.back-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: white;
+    text-decoration: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    transition: all 0.2s ease;
+    margin-bottom: 20px;
+    font-weight: 500;
+}
+
+.back-button:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.analyze-header h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.analyze-header p {
+    font-size: 1.1rem;
+    opacity: 0.9;
+    font-weight: 300;
+}
+
+.analyze-content {
+    background: white;
+    min-height: calc(100vh - 200px);
+    border-radius: 20px 20px 0 0;
+    padding: 40px 20px;
+}
+
+@media (max-width: 768px) {
+    .analyze-header h1 {
+        font-size: 2rem;
+    }
+
+    .analyze-content {
+        padding: 20px 15px;
+    }
+}
