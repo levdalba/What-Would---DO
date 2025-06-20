@@ -6,8 +6,7 @@ import type {
 // Configuration for different AI services
 const API_CONFIG = {
     magnus: {
-        endpoint: import.meta.env.VITE_MAGNUS_API_URL || '/api/magnus-analyze',
-        apiKey: import.meta.env.VITE_MAGNUS_API_KEY || '',
+        endpoint: 'http://10.224.9.93:8000/predict',
     },
     chatgpt: {
         endpoint:
@@ -19,6 +18,58 @@ const API_CONFIG = {
         endpoint: import.meta.env.VITE_VISION_API_URL || '/api/chess-vision',
         apiKey: import.meta.env.VITE_VISION_API_KEY || '',
     },
+}
+
+interface PredictionResponse {
+    predicted_move: string
+    confidence: number
+}
+
+/**
+ * Predicts the next move using the trained Magnus Carlsen model
+ */
+export const predictMagnusMove = async (
+    boardFen: string
+): Promise<PredictionResponse> => {
+    console.log('Attempting to predict move for FEN:', boardFen)
+
+    try {
+        // The issue is CORS preflight - your server needs to handle OPTIONS requests
+        // Let's try a different approach first
+        const response = await fetch(API_CONFIG.magnus.endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            // Remove Accept header to avoid triggering CORS preflight
+            body: JSON.stringify({
+                board: boardFen,
+            }),
+        })
+
+        console.log('Response status:', response.status)
+
+        if (!response.ok) {
+            throw new Error(
+                `HTTP error! status: ${response.status} - ${response.statusText}. CORS Issue: Your server needs to handle OPTIONS requests.`
+            )
+        }
+
+        const data: PredictionResponse = await response.json()
+        console.log('Received prediction:', data)
+        return data
+    } catch (error) {
+        console.error('Error predicting move:', error)
+
+        // Provide specific CORS error information
+        if (error instanceof TypeError && error.message.includes('fetch')) {
+            throw new Error(
+                'CORS Error: Your API server at http://10.224.9.93:8000 needs to:\n1. Handle OPTIONS requests\n2. Include CORS headers\n3. Accept POST requests to /predict'
+            )
+        }
+
+        throw error
+    }
 }
 
 /**
@@ -137,7 +188,6 @@ export const validateApiConfig = (): {
     const missing: string[] = []
 
     // Check which API keys are missing (optional for development)
-    if (!API_CONFIG.magnus.apiKey) missing.push('Magnus API Key')
     if (!API_CONFIG.chatgpt.apiKey) missing.push('OpenAI API Key')
     if (!API_CONFIG.vision.apiKey) missing.push('Vision API Key')
 
@@ -150,20 +200,30 @@ export const validateApiConfig = (): {
 /**
  * Test API connection
  */
-export const testApiConnection = async (): Promise<boolean> => {
+export const testApiConnection = async (): Promise<{
+    success: boolean
+    message: string
+    details?: any
+}> => {
     try {
-        // Simple test - try to analyze a basic position
-        const testRequest: MagnusAnalysisRequest = {
-            position:
-                'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
-            gamePhase: 'opening',
-            playerColor: 'white',
-        }
+        console.log('Testing API connection to:', API_CONFIG.magnus.endpoint)
 
-        await analyzeMagnusStyle(testRequest)
-        return true
-    } catch (error) {
-        console.error('API connection test failed:', error)
-        return false
+        // Test with a simple starting position
+        const testFen =
+            'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
+
+        const result = await predictMagnusMove(testFen)
+
+        return {
+            success: true,
+            message: 'API connection successful!',
+            details: result,
+        }
+    } catch (error: any) {
+        return {
+            success: false,
+            message: error.message || 'Unknown error',
+            details: error,
+        }
     }
 }

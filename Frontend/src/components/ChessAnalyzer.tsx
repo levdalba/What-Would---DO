@@ -2,12 +2,14 @@ import { useState } from 'react'
 import { Chess } from 'chess.js'
 import { Chessboard } from 'react-chessboard'
 import { Upload, Brain, MessageSquare, RotateCcw } from 'lucide-react'
+import { predictMagnusMove, testApiConnection } from '../services/api'
 import './ChessAnalyzer.css'
 
 interface MoveRecommendation {
     move: string
     evaluation: number
     explanation: string
+    confidence?: number
 }
 
 interface AnalysisResult {
@@ -25,6 +27,7 @@ const ChessAnalyzer = () => {
     const [uploadedImage, setUploadedImage] = useState<string | null>(null)
     const [analysis, setAnalysis] = useState<AnalysisResult | null>(null)
     const [gameHistory, setGameHistory] = useState<string[]>([])
+    const [apiTestResult, setApiTestResult] = useState<string | null>(null)
 
     const makeMove = (sourceSquare: string, targetSquare: string) => {
         const gameCopy = new Chess(game.fen())
@@ -60,27 +63,42 @@ const ChessAnalyzer = () => {
         }
     }
 
+    // API call to predict next move using your trained model
     const analyzePosition = async () => {
-        setAnalysis((prev) => ({ ...prev, loading: true } as AnalysisResult))
+        setAnalysis({ loading: true } as AnalysisResult)
 
-        // Simulate AI analysis - replace with actual API call
-        setTimeout(() => {
-            const mockRecommendation: MoveRecommendation = {
-                move: 'Nf3',
-                evaluation: 0.3,
-                explanation:
-                    "This move follows Magnus Carlsen's style of controlling the center early.",
-            }
+        try {
+            const prediction = await predictMagnusMove(game.fen())
 
-            const mockAnalysis: AnalysisResult = {
-                recommendation: mockRecommendation,
-                aiExplanation:
-                    'Magnus typically prefers this type of positional play, focusing on piece development and center control rather than aggressive tactics in the opening.',
+            // Generate AI explanation (you can integrate ChatGPT here later)
+            const aiExplanation = `This move has a ${prediction.confidence}% confidence based on Magnus Carlsen's playing style. The model analyzed the current position and determined this to be the most likely move Magnus would play in this situation.`
+
+            const analysisResult: AnalysisResult = {
+                recommendation: {
+                    move: prediction.predicted_move,
+                    evaluation: 0, // You might want to add evaluation to your API
+                    explanation: `Predicted move based on Magnus Carlsen's style with ${prediction.confidence}% confidence.`,
+                    confidence: prediction.confidence,
+                },
+                aiExplanation,
                 loading: false,
             }
 
-            setAnalysis(mockAnalysis)
-        }, 2000)
+            setAnalysis(analysisResult)
+        } catch (error) {
+            console.error('Analysis failed:', error)
+            setAnalysis({
+                recommendation: {
+                    move: 'Connection Error',
+                    evaluation: 0,
+                    explanation:
+                        'Failed to connect to the Magnus AI model. Please check your connection and try again.',
+                },
+                aiExplanation:
+                    'Make sure the AI model server is running at http://10.224.9.93:8000 and accessible from your network.',
+                loading: false,
+            })
+        }
     }
 
     const resetGame = () => {
@@ -94,24 +112,53 @@ const ChessAnalyzer = () => {
     const analyzeUploadedPosition = async () => {
         if (!uploadedImage) return
 
-        setAnalysis((prev) => ({ ...prev, loading: true } as AnalysisResult))
+        setAnalysis({ loading: true } as AnalysisResult)
 
-        // Simulate image analysis - replace with actual AI vision API
+        // For uploaded images, we'll need to implement image-to-FEN conversion
+        // For now, we'll use a placeholder message
         setTimeout(() => {
             const mockAnalysis: AnalysisResult = {
                 recommendation: {
-                    move: 'Qd5+',
-                    evaluation: 2.1,
+                    move: 'Image Analysis',
+                    evaluation: 0,
                     explanation:
-                        'Magnus would likely play this forcing move to gain tempo.',
+                        'Image-to-position analysis is not yet implemented. Please use the interactive board for now.',
+                    confidence: 0,
                 },
                 aiExplanation:
-                    "Based on the uploaded position, this move creates immediate threats and follows Magnus's aggressive style when ahead in development.",
+                    'To analyze uploaded images, we need to implement optical chess recognition (OCR) to convert the board image to FEN notation, then use the prediction API.',
                 loading: false,
             }
 
             setAnalysis(mockAnalysis)
-        }, 3000)
+        }, 2000)
+    }
+
+    const handleModeChange = (mode: 'board' | 'upload') => {
+        setAnalysisMode(mode)
+        // Clear analysis when switching modes to fix the bug
+        setAnalysis(null)
+        // Clear uploaded image when switching to board mode
+        if (mode === 'board') {
+            setUploadedImage(null)
+        }
+    }
+
+    const testAPI = async () => {
+        setApiTestResult('Testing API connection...')
+
+        const result = await testApiConnection()
+
+        if (result.success) {
+            setApiTestResult(
+                `✅ API Test Successful! Move: ${result.details?.predicted_move}, Confidence: ${result.details?.confidence}%`
+            )
+        } else {
+            setApiTestResult(`❌ API Test Failed: ${result.message}`)
+        }
+
+        // Clear the test result after 10 seconds
+        setTimeout(() => setApiTestResult(null), 10000)
     }
 
     return (
@@ -121,7 +168,7 @@ const ChessAnalyzer = () => {
                     className={`mode-btn ${
                         analysisMode === 'board' ? 'active' : ''
                     }`}
-                    onClick={() => setAnalysisMode('board')}
+                    onClick={() => handleModeChange('board')}
                 >
                     <Brain size={20} />
                     Interactive Board
@@ -130,7 +177,7 @@ const ChessAnalyzer = () => {
                     className={`mode-btn ${
                         analysisMode === 'upload' ? 'active' : ''
                     }`}
-                    onClick={() => setAnalysisMode('upload')}
+                    onClick={() => handleModeChange('upload')}
                 >
                     <Upload size={20} />
                     Upload Position
@@ -162,8 +209,20 @@ const ChessAnalyzer = () => {
                                     <RotateCcw size={16} />
                                     Reset Board
                                 </button>
+                                <button
+                                    onClick={testAPI}
+                                    className="test-api-btn"
+                                >
+                                    🔧 Test API
+                                </button>
                             </div>
                         </div>
+
+                        {apiTestResult && (
+                            <div className="api-test-result">
+                                <p>{apiTestResult}</p>
+                            </div>
+                        )}
 
                         {gameHistory.length > 0 && (
                             <div className="game-history">
@@ -235,20 +294,35 @@ const ChessAnalyzer = () => {
                                         <span className="move">
                                             {analysis.recommendation.move}
                                         </span>
-                                        <span
-                                            className={`evaluation ${
-                                                analysis.recommendation
+                                        {analysis.recommendation.confidence && (
+                                            <span className="confidence">
+                                                {
+                                                    analysis.recommendation
+                                                        .confidence
+                                                }
+                                                % confidence
+                                            </span>
+                                        )}
+                                        {analysis.recommendation.evaluation !==
+                                            0 && (
+                                            <span
+                                                className={`evaluation ${
+                                                    analysis.recommendation
+                                                        .evaluation > 0
+                                                        ? 'positive'
+                                                        : 'negative'
+                                                }`}
+                                            >
+                                                {analysis.recommendation
                                                     .evaluation > 0
-                                                    ? 'positive'
-                                                    : 'negative'
-                                            }`}
-                                        >
-                                            {analysis.recommendation
-                                                .evaluation > 0
-                                                ? '+'
-                                                : ''}
-                                            {analysis.recommendation.evaluation}
-                                        </span>
+                                                    ? '+'
+                                                    : ''}
+                                                {
+                                                    analysis.recommendation
+                                                        .evaluation
+                                                }
+                                            </span>
+                                        )}
                                     </div>
                                     <p className="explanation">
                                         {analysis.recommendation.explanation}
@@ -264,6 +338,13 @@ const ChessAnalyzer = () => {
                                 </div>
                             </div>
                         )}
+                    </div>
+                )}
+
+                {apiTestResult && (
+                    <div className="api-test-result">
+                        <h3>API Connection Test</h3>
+                        <p>{apiTestResult}</p>
                     </div>
                 )}
             </div>
