@@ -370,3 +370,32 @@
 .api-test-result p {
     margin: 0;
 }
+
+.ocr-status {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 16px;
+    margin: 20px 0;
+    font-size: 14px;
+}
+
+.ocr-status h4 {
+    margin: 0 0 12px 0;
+    color: #495057;
+    font-size: 16px;
+}
+
+.ocr-status p {
+    margin: 8px 0;
+    color: #6c757d;
+}
+
+.ocr-status a {
+    color: #4f46e5;
+    text-decoration: none;
+}
+
+.ocr-status a:hover {
+    text-decoration: underline;
+}

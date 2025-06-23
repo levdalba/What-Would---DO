@@ -6,7 +6,7 @@ import type {
 // Configuration for different AI services
 const API_CONFIG = {
     magnus: {
-        endpoint: 'http://10.224.9.93:8000/predict',
+        endpoint: 'http://localhost:8000/predict', // Updated to use localhost
     },
     chatgpt: {
         endpoint:
@@ -126,38 +126,125 @@ export const explainMoveWithChatGPT = async (
 }
 
 /**
- * Analyzes uploaded chess board image
+ * Analyzes uploaded chess board image using OCR
  */
 export const analyzeChessBoardImage = async (
-    _imageFile: File
+    imageFile: File,
+    apiChoice: string = 'gemini'
 ): Promise<{
     fen: string
     confidence: number
     detectedPieces: number
+    success: boolean
+    error?: string
+    notes?: string
 }> => {
-    // Mock implementation - replace with actual computer vision API
-    return new Promise((resolve, reject) => {
-        setTimeout(() => {
-            // Simulate occasional failures
-            if (Math.random() < 0.1) {
-                reject(
-                    new Error(
-                        'Could not detect chess board in image. Please ensure the board is clearly visible and well-lit.'
-                    )
-                )
-                return
-            }
+    try {
+        const formData = new FormData()
+        formData.append('file', imageFile)
+        formData.append('api_choice', apiChoice)
 
-            // Mock successful analysis
-            const mockResult = {
-                fen: 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1',
-                confidence: 0.95,
-                detectedPieces: 32,
+        const response = await fetch(
+            'http://localhost:8000/analyze-board-image',
+            {
+                method: 'POST',
+                body: formData,
             }
+        )
 
-            resolve(mockResult)
-        }, 2000 + Math.random() * 1000)
-    })
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const result = await response.json()
+
+        return {
+            fen: result.fen || '',
+            confidence: result.confidence || 0,
+            detectedPieces: result.detected_pieces || 0,
+            success: result.success || false,
+            error: result.error || '',
+            notes: result.notes || '',
+        }
+    } catch (error) {
+        console.error('Error analyzing chess board image:', error)
+        throw new Error(
+            `OCR analysis failed: ${
+                error instanceof Error ? error.message : 'Unknown error'
+            }`
+        )
+    }
+}
+
+/**
+ * Complete workflow: Analyze chess board image and get move prediction
+ */
+export const analyzeImageAndPredict = async (
+    imageFile: File,
+    apiChoice: string = 'gemini'
+): Promise<{
+    ocrResult: any
+    predictionResult: any
+    success: boolean
+    error?: string
+}> => {
+    try {
+        const formData = new FormData()
+        formData.append('file', imageFile)
+        formData.append('api_choice', apiChoice)
+
+        const response = await fetch(
+            'http://localhost:8000/analyze-and-predict',
+            {
+                method: 'POST',
+                body: formData,
+            }
+        )
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const result = await response.json()
+        return result
+    } catch (error) {
+        console.error('Error in analyze and predict:', error)
+        throw new Error(
+            `Analysis failed: ${
+                error instanceof Error ? error.message : 'Unknown error'
+            }`
+        )
+    }
+}
+
+/**
+ * Check OCR configuration and API availability
+ */
+export const getOCRConfig = async (): Promise<{
+    geminiAvailable: boolean
+    openaiAvailable: boolean
+    supportedFormats: string[]
+    recommendedApi: string | null
+}> => {
+    try {
+        const response = await fetch('http://localhost:8000/ocr-config')
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const config = await response.json()
+
+        return {
+            geminiAvailable: config.gemini_available,
+            openaiAvailable: config.openai_available,
+            supportedFormats: config.supported_formats,
+            recommendedApi: config.recommended_api,
+        }
+    } catch (error) {
+        console.error('Error getting OCR config:', error)
+        throw error
+    }
 }
 
 /**
@@ -216,7 +303,9 @@ export const testApiConnection = async (): Promise<{
 
         return {
             success: true,
-            message: 'API connection successful!',
+            message: `API connection successful! Predicted move: ${
+                result.predicted_move
+            } (${result.confidence.toFixed(2)}% confidence)`,
             details: result,
         }
     } catch (error: any) {

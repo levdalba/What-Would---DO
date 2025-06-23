@@ -2,7 +2,7 @@
 __pycache__/
 *.py[codz]
 *$py.class
-
+wwxd
 
 Backend/data_processing/content/*
 Backend/data_processing/v2/training_data/*
