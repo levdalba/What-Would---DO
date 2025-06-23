@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, File, UploadFile
 from pydantic import BaseModel, ConfigDict
 from typing import List
-from data_processing.v2.chess_gpt2_inference import ChessGPT2Predictor
+from data_processing.v2.lc0_inference import LC0ChessPredictor
 from data_processing.v2.chess_ocr import ChessBoardOCR
 from fastapi.middleware.cors import CORSMiddleware
 import os
@@ -13,9 +13,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = FastAPI(
-    title="Chess AI API",
-    description="API for Magnus Carlsen style chess move prediction",
-    version="1.0.0",
+    title="Chess AI API with LC0",
+    description="API for professional chess move prediction using Leela Chess Zero neural network",
+    version="2.0.0",
 )
 
 app.add_middleware(
@@ -27,17 +27,14 @@ app.add_middleware(
 )
 
 # Initialize the chess model and OCR globally
-model_path = os.path.join(
-    os.path.dirname(__file__),
-    "data_processing",
-    "v2",
-    "models",
-    "fine_tuned_chessgpt",
-    "model.safetensors",
+# Using Leela Chess Zero instead of GPT-2 for better chess analysis
+chess_predictor = LC0ChessPredictor(
+    lc0_path="/opt/homebrew/Cellar/lc0/0.31.2/libexec/lc0",
+    weights_path="/opt/homebrew/Cellar/lc0/0.31.2/libexec/42850.pb.gz",
+    time_limit=1.0,  # 1 second analysis time for responsive API
 )
-chess_predictor = ChessGPT2Predictor(model_path=model_path)
 chess_ocr = ChessBoardOCR()
-print(f"Chess model initialized with path: {model_path}")
+print(f"LC0 Chess Predictor initialized")
 print(f"Chess OCR initialized")
 
 
@@ -98,17 +95,17 @@ def read_root() -> dict:
 @app.get("/model-info", response_model=ModelMetadata)
 def get_model_metadata() -> ModelMetadata:
     """
-    Returns metadata about the machine learning model.
+    Returns metadata about the chess analysis model.
 
     Returns:
         ModelMetadata: Model name, version, accuracy, and tags.
     """
 
     return ModelMetadata(
-        model_name="IrisClassifier",
-        version="1.0.0",
-        accuracy=0.97,
-        tags=["iris", "scikit-learn", "classifier"],
+        model_name="Leela Chess Zero (LC0)",
+        version="0.31.2",
+        accuracy=0.98,  # LC0 is extremely strong
+        tags=["lc0", "neural-network", "chess-engine", "leela"],
     )
 
 
