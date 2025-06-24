@@ -1,0 +1,22 @@
+{
+  "training": {
+    "method": "selfplay_with_supervision",
+    "bias_towards_human_moves": true,
+    "human_move_weight": 2.0,
+    "exploration_noise": 0.1,
+    "temperature": 0.8
+  },
+  "positions": {
+    "focus_openings": [],
+    "position_types": [
+      "middlegame",
+      "tactical"
+    ],
+    "exclude_endgame": true
+  },
+  "evaluation": {
+    "magnus_positions": 180076,
+    "style_differences": 259,
+    "avg_opponent_rating": 2661.2617615689164
+  }
+}

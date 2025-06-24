@@ -8,14 +8,15 @@ import os
 import tempfile
 import json
 from dotenv import load_dotenv
+from pathlib import Path
 
 # Load environment variables from .env file
 load_dotenv()
 
 app = FastAPI(
-    title="Chess AI API with LC0",
-    description="API for professional chess move prediction using Leela Chess Zero neural network",
-    version="2.0.0",
+    title="Chess AI API with LC0 and Magnus Style",
+    description="API for professional chess move prediction using Leela Chess Zero neural network and Magnus Carlsen style prediction",
+    version="2.1.0",
 )
 
 app.add_middleware(
@@ -26,13 +27,29 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
-# Initialize the chess model and OCR globally
-# Using Leela Chess Zero instead of GPT-2 for better chess analysis
+# Initialize the chess models and OCR globally
+# Primary: Leela Chess Zero for strong analysis
 chess_predictor = LC0ChessPredictor(
     lc0_path="/opt/homebrew/Cellar/lc0/0.31.2/libexec/lc0",
     weights_path="/opt/homebrew/Cellar/lc0/0.31.2/libexec/42850.pb.gz",
     time_limit=1.0,  # 1 second analysis time for responsive API
 )
+
+# Optional: Magnus Carlsen style predictor
+magnus_predictor = None
+try:
+    from data_processing.v2.improved_magnus_training import MagnusStylePredictor
+
+    magnus_model_path = Path("data_processing/v2/models/magnus_style_model")
+    if magnus_model_path.exists():
+        magnus_predictor = MagnusStylePredictor(str(magnus_model_path))
+        print("Magnus Carlsen style predictor loaded successfully")
+    else:
+        print("Magnus model not found - train using improved_magnus_training.py")
+except ImportError as e:
+    print(f"Magnus predictor dependencies not available: {e}")
+    print("To enable Magnus style prediction, install: pip install torch scikit-learn")
+
 chess_ocr = ChessBoardOCR()
 print(f"LC0 Chess Predictor initialized")
 print(f"Chess OCR initialized")
@@ -62,6 +79,23 @@ class PredictionResponse(BaseModel):
 
     predicted_move: str  # The predicted move in UCI format
     confidence: float  # Confidence value for the prediction
+
+
+class MagnusStyleResponse(BaseModel):
+    """Output format for Magnus Carlsen style predictions."""
+
+    top_moves: List[dict]  # List of moves with probabilities
+    magnus_choice: str  # Most likely Magnus move
+    confidence: float  # Confidence in Magnus choice
+    explanation: str  # Style explanation
+
+
+class CombinedPredictionResponse(BaseModel):
+    """Combined engine and style predictions."""
+
+    lc0_analysis: PredictionResponse
+    magnus_style: MagnusStyleResponse
+    comparison: dict  # Comparison between engines
 
 
 class BoardInput(BaseModel):
@@ -95,15 +129,15 @@ def read_root() -> dict:
 @app.get("/model-info", response_model=ModelMetadata)
 def get_model_metadata() -> ModelMetadata:
     """
-    Returns metadata about the chess analysis model.
+    Returns metadata about the chess analysis models.
 
     Returns:
         ModelMetadata: Model name, version, accuracy, and tags.
     """
 
     return ModelMetadata(
-        model_name="Leela Chess Zero (LC0)",
-        version="0.31.2",
+        model_name="LC0 + Magnus Style Hybrid",
+        version="2.1.0",
         accuracy=0.98,  # LC0 is extremely strong
         tags=["lc0", "neural-network", "chess-engine", "leela"],
     )
@@ -142,6 +176,145 @@ def predict_move(request: BoardInput) -> PredictionResponse:
 
     except Exception as e:
         print(f"Error in prediction: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+@app.post("/predict-magnus-style", response_model=MagnusStyleResponse)
+def predict_magnus_style(request: BoardInput) -> MagnusStyleResponse:
+    """
+    Predict moves in Magnus Carlsen's playing style.
+
+    Args:
+        request (BoardInput): The input FEN string for the current chess board.
+
+    Returns:
+        MagnusStyleResponse: Top moves with probabilities in Magnus's style.
+    """
+    if magnus_predictor is None:
+        raise HTTPException(
+            status_code=501,
+            detail="Magnus style model not available. Train the model using improved_magnus_training.py",
+        )
+
+    try:
+        import chess
+
+        # Validate FEN string
+        if not request.board or not request.board.strip():
+            raise HTTPException(
+                status_code=400, detail="Board FEN string cannot be empty"
+            )
+
+        # Create board from FEN
+        board = chess.Board(request.board)
+
+        # Get Magnus style predictions
+        predictions = magnus_predictor.predict_move(board, top_k=5)
+
+        if not predictions:
+            raise HTTPException(
+                status_code=400,
+                detail="No valid Magnus-style moves found for the given position",
+            )
+
+        # Format response
+        top_moves = [
+            {
+                "move": move_uci,
+                "probability": prob,
+                "san": board.san(chess.Move.from_uci(move_uci)),
+            }
+            for move_uci, prob in predictions
+        ]
+
+        magnus_choice = predictions[0][0]  # Top move
+        confidence = predictions[0][1]  # Top move probability
+
+        return MagnusStyleResponse(
+            top_moves=top_moves,
+            magnus_choice=magnus_choice,
+            confidence=confidence,
+            explanation=f"Moves predicted in Magnus Carlsen's playing style. Top choice: {board.san(chess.Move.from_uci(magnus_choice))} with {confidence:.1%} confidence.",
+        )
+
+    except Exception as e:
+        print(f"Error in Magnus style prediction: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+@app.post("/predict-combined", response_model=CombinedPredictionResponse)
+def predict_combined(request: BoardInput) -> CombinedPredictionResponse:
+    """
+    Get both LC0 engine analysis and Magnus Carlsen style predictions.
+
+    Args:
+        request (BoardInput): The input FEN string for the current chess board.
+
+    Returns:
+        CombinedPredictionResponse: Combined predictions from both models.
+    """
+    try:
+        import chess
+
+        # Get LC0 analysis
+        lc0_move, lc0_confidence = chess_predictor.predict_move_uci(request.board)
+        lc0_analysis = PredictionResponse(
+            predicted_move=lc0_move, confidence=lc0_confidence
+        )
+
+        # Get Magnus style analysis (if available)
+        if magnus_predictor is not None:
+            board = chess.Board(request.board)
+            magnus_predictions = magnus_predictor.predict_move(board, top_k=3)
+
+            top_moves = [
+                {
+                    "move": move_uci,
+                    "probability": prob,
+                    "san": board.san(chess.Move.from_uci(move_uci)),
+                }
+                for move_uci, prob in magnus_predictions
+            ]
+
+            magnus_style = MagnusStyleResponse(
+                top_moves=top_moves,
+                magnus_choice=magnus_predictions[0][0],
+                confidence=magnus_predictions[0][1],
+                explanation=f"Magnus style analysis with {len(magnus_predictions)} candidate moves",
+            )
+
+            # Compare predictions
+            magnus_top_move = magnus_predictions[0][0]
+            comparison = {
+                "engines_agree": lc0_move == magnus_top_move,
+                "lc0_move_san": board.san(chess.Move.from_uci(lc0_move)),
+                "magnus_move_san": board.san(chess.Move.from_uci(magnus_top_move)),
+                "analysis": (
+                    "LC0 and Magnus agree on the best move"
+                    if lc0_move == magnus_top_move
+                    else "LC0 and Magnus suggest different moves - interesting position!"
+                ),
+            }
+        else:
+            magnus_style = MagnusStyleResponse(
+                top_moves=[],
+                magnus_choice="",
+                confidence=0.0,
+                explanation="Magnus style model not available",
+            )
+            comparison = {
+                "engines_agree": False,
+                "lc0_move_san": "",
+                "magnus_move_san": "",
+                "analysis": "Only LC0 analysis available",
+            }
+
+        return CombinedPredictionResponse(
+            lc0_analysis=lc0_analysis, magnus_style=magnus_style, comparison=comparison
+        )
+
+    except Exception as e:
+        print(f"Error in combined prediction: {e}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
