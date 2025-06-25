@@ -93,7 +93,7 @@ def predict_move(request: BoardInput) -> PredictionResponse:
         PredictionResponse: Predicted UCI move and confidence score.
     """
     # Initialize ChessModel with the path to the fine-tuned model
-    model_path = "data_processing/v2/magnus_transformer_finetuned.pth"
+    model_path = "data_processing/v2/models/magnus_transformer_finetuned.pth"
     chess_model = ChessModel(model_path)
 
     # Get the predicted move from the model

@@ -7,6 +7,7 @@ __pycache__/
 Backend/data_processing/content/*
 Backend/data_processing/v2/training_data/*
 Backend/data_processing/v2/models/*
+Backend/mlruns
 
 
 # C extensions

@@ -10,31 +10,33 @@ PIECE_TO_ID = {
 }
 
 class MagnusTransformer(nn.Module):
-    def __init__(self, vocab_size=15, seq_len=65, num_moves=4096, d_model=128, nhead=8, num_layers=2):
+    def __init__(self, vocab_size=15, seq_len=65, num_moves=4096, d_model=256, nhead=16, num_layers=6, dim_feedforward=8192, dropout=0.2):
         super().__init__()
-        self.embedding = nn.Embedding(vocab_size, d_model)
-        self.pos_encoding = nn.Parameter(torch.randn(seq_len, d_model))
+        self.embed = nn.Embedding(vocab_size, d_model)  # match saved model
+        self.pos = nn.Parameter(torch.randn(seq_len, d_model))  # match saved model
 
-        encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead)
-        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=d_model,
+            nhead=nhead,
+            dim_feedforward=dim_feedforward,
+            dropout=dropout,
+            batch_first=True
+        )
+        self.tr = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)  # match saved model
 
-        self.fc = nn.Linear(d_model * seq_len, num_moves)
+        self.fc = nn.Linear(d_model * seq_len, num_moves)  # [4096, 16640] if 256x65
 
     def forward(self, x):
-        x = self.embedding(x)  # (batch, seq_len, d_model)
-        x = x + self.pos_encoding.unsqueeze(0)  # Add position encoding
-        x = x.permute(1, 0, 2)  # (seq_len, batch, d_model)
-        x = self.transformer(x)  # (seq_len, batch, d_model)
-        x = x.permute(1, 0, 2).reshape(x.shape[1], -1)  # (batch, seq_len * d_model)
-        out = self.fc(x)  # (batch, num_moves)
-        return out
+        x = self.embed(x) + self.pos.unsqueeze(0)  # (batch, seq_len, d_model)
+        x = self.tr(x)
+        x = x.reshape(x.shape[0], -1)
+        return self.fc(x)
 
 class ChessModel:
     def __init__(self, model_path, device=None):
-        # Load the fine-tuned model
         self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = MagnusTransformer().to(self.device)
-        self.model.load_state_dict(torch.load(model_path))
+        self.model.load_state_dict(torch.load(model_path, map_location=self.device))  # Safe load
         self.model.eval()
 
     def fen_to_tokens(self, fen):
@@ -49,9 +51,9 @@ class ChessModel:
     def encode_move(self, move_str):
         try:
             move = chess.Move.from_uci(move_str)
-            return move.from_square * 64 + move.to_square  # 0–4095
+            return move.from_square * 64 + move.to_square
         except ValueError:
-            return None  # If the move is invalid, return None
+            return None
 
     def decode_move(self, index):
         from_sq = index // 64
@@ -59,19 +61,15 @@ class ChessModel:
         return chess.Move(from_sq, to_sq)
 
     def predict_move(self, fen):
-        # Convert FEN to tokens and move to device
-        x = self.fen_to_tokens(fen).unsqueeze(0).to(self.device)  # Add batch dimension
-        with torch.no_grad():  # Disable gradient tracking for inference
-            logits = self.model(x)  # Get model output (predicted logits)
-            predicted_index = logits.argmax(dim=1).item()  # Get the index of the predicted move
-        
-        move = self.decode_move(predicted_index)  # Decode the predicted move index
-        return move
+        x = self.fen_to_tokens(fen).unsqueeze(0).to(self.device)
+        with torch.no_grad():
+            logits = self.model(x)
+            predicted_index = logits.argmax(dim=1).item()
+        return self.decode_move(predicted_index)
 
+    @staticmethod
     def input_and_predict_move(input_board):
-
-        model_path = "data-processing/v2/models/magnus_transformer_finetuned_4th_general_all_carlsen.pth"
+        model_path = "data_processing/v2/models/magnus_transformer_finetuned_4th_general_all_carlsen.pth"
         chess_model = ChessModel(model_path)
-        
         predicted_move = chess_model.predict_move(input_board)
         print(f"Predicted move: {predicted_move.uci()}")
