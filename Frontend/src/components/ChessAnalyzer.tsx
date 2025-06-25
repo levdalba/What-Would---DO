@@ -5,7 +5,6 @@ import { Upload, Brain, MessageSquare, RotateCcw } from 'lucide-react'
 import {
     predictMagnusMove,
     testApiConnection,
-    analyzeChessBoardImage,
     analyzeImageAndPredict,
     getOCRConfig,
 } from '../services/api'
