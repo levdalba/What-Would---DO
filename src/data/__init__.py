@@ -1,2 +1,1 @@
-# Data Module
-"""Data processing and utilities for Magnus Chess AI."""
+"""Data processing module for Magnus Chess AI"""

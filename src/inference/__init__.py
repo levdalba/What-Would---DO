@@ -1,2 +1,1 @@
-# Inference Module
-"""Inference and prediction utilities for Magnus Chess AI models."""
+"""Inference module for Magnus Chess AI"""

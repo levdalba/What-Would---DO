@@ -1,2 +1,1 @@
-# Utils Module
-"""Shared utilities for Magnus Chess AI."""
+"""Utilities module for Magnus Chess AI"""

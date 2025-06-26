@@ -1,0 +1,42 @@
+# MLOps Requirements for Magnus Chess Training
+# Core ML libraries
+torch>=2.0.0
+torchvision>=0.15.0
+scikit-learn>=1.3.0
+numpy>=1.24.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Chess-specific
+python-chess>=1.999
+chess>=1.11.0
+
+# MLOps and Experiment Tracking
+mlflow>=2.8.0
+optuna>=3.4.0  # Hyperparameter optimization
+wandb>=0.15.0  # Optional: Weights & Biases for additional tracking
+tensorboard>=2.13.0
+
+# Data processing
+pandas>=2.0.0
+tqdm>=4.65.0
+pickle-mixin>=1.0.2
+
+# API and serving
+fastapi>=0.100.0
+uvicorn>=0.23.0
+pydantic>=2.0.0
+
+# Model monitoring and drift detection
+evidently>=0.4.0
+great-expectations>=0.17.0
+
+# Infrastructure and deployment
+docker>=6.1.0
+kubernetes>=27.2.0
+
+# Development tools
+pytest>=7.4.0
+black>=23.7.0
+isort>=5.12.0
+mypy>=1.5.0

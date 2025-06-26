@@ -1,2 +1,1 @@
-# Training Module
-"""Training utilities and scripts for Magnus Chess AI models."""
+"""Training module for Magnus Chess AI"""

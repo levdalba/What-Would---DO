@@ -31,15 +31,24 @@ from tqdm import tqdm
 try:
     import mlflow
     import mlflow.pytorch
-
-    # Add model manager
-    from mlops_model_manager import MagnusModelManager, integrate_with_training
-
+    
+    # Add model manager from new location
+    project_root = Path(__file__).parent.parent.parent
+    sys.path.append(str(project_root))
+    from src.mlops.model_manager import EnhancedMagnusModelManager, integrate_enhanced_training
+    
     MLFLOW_AVAILABLE = True
 except ImportError:
     MLFLOW_AVAILABLE = False
 
-from stockfish_magnus_trainer import StockfishConfig
+# Chess processing
+try:
+    import chess
+    import chess.pgn
+    CHESS_AVAILABLE = True
+except ImportError:
+    CHESS_AVAILABLE = False
+    print("⚠️ python-chess not available")
 
 
 class FastMagnusDataset(Dataset):
@@ -475,7 +484,7 @@ def train_fast_magnus():
             )
 
             # Save model with comprehensive management
-            model_manager = MagnusModelManager()
+            model_manager = EnhancedMagnusModelManager()
 
             final_metrics = {
                 "test_accuracy": test_acc,
@@ -499,7 +508,7 @@ def train_fast_magnus():
                 "optimization": "gpu_optimized",
             }
 
-            model_id = integrate_with_training(
+            model_version = integrate_enhanced_training(
                 model_manager=model_manager,
                 model=model,
                 model_name="fast_magnus",
@@ -508,7 +517,7 @@ def train_fast_magnus():
                 config=config_info,
             )
 
-            print(f"💾 Model saved with ID: {model_id}")
+            print(f"💾 Model saved with ID: {model_version.model_id}")
 
             # Also save to MLflow
             mlflow.pytorch.log_model(model, "fast_magnus_model")

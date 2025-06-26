@@ -1,2 +1,1 @@
-# MLOps Module
-"""MLOps and model management utilities for Magnus Chess AI."""
+"""MLOps module for Magnus Chess AI"""

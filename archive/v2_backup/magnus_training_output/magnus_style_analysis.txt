@@ -1,0 +1,96 @@
+MAGNUS CARLSEN STYLE ANALYSIS REPORT
+==================================================
+
+Total Magnus positions analyzed: 180076
+Positions where Magnus differs from LC0: 259
+Style difference rate: 0.1%
+
+EXAMPLE STYLE DIFFERENCES:
+------------------------------
+
+Position 1:
+FEN: r2q1rk1/pp1n1ppp/2pbpn2/3p4/2PP4/1PNQPN2/PB3PPP/R4RK1 b - - 4 10
+Magnus move: Qe7
+LC0 preferred: f8e8
+Opening: Unknown
+Date: 2001.01.05
+Game result: 1/2-1/2
+
+Position 2:
+FEN: r4rk1/pp1nqppp/2pbpn2/3p4/2PP4/1PNQPN2/PB3PPP/3R1RK1 b - - 6 11
+Magnus move: Rad8
+LC0 preferred: d6b4
+Opening: Unknown
+Date: 2001.01.05
+Game result: 1/2-1/2
+
+Position 3:
+FEN: 3r1rk1/pp1nqppp/2pbpn2/3p4/2PP4/1PNQPN2/PB3PPP/3RR1K1 b - - 8 12
+Magnus move: dxc4
+LC0 preferred: d6b4
+Opening: Unknown
+Date: 2001.01.05
+Game result: 1/2-1/2
+
+Position 4:
+FEN: 3r1rk1/pp1nqppp/2pb1n2/4P3/2P5/2NQPN2/PB3PPP/3RR1K1 b - - 0 14
+Magnus move: Nxe5
+LC0 preferred: d6e5
+Opening: Unknown
+Date: 2001.01.05
+Game result: 1/2-1/2
+
+Position 5:
+FEN: 3r1rk1/pp2qppp/2p2n2/4b3/2P5/2N1P3/PB2QPPP/3RR1K1 b - - 1 16
+Magnus move: Rxd1
+LC0 preferred: e7b4
+Opening: Unknown
+Date: 2001.01.05
+Game result: 1/2-1/2
+
+Position 6:
+FEN: 6k1/pp3ppp/2p2n2/4b3/2P5/4P3/PB3PPP/3N2K1 b - - 0 20
+Magnus move: Bxb2
+LC0 preferred: f6d7
+Opening: Unknown
+Date: 2001.01.05
+Game result: 1/2-1/2
+
+Position 7:
+FEN: 6k1/pp3ppp/2p2n2/8/2P5/4P3/PN3PPP/6K1 b - - 0 21
+Magnus move: b5
+LC0 preferred: f6e4
+Opening: Unknown
+Date: 2001.01.05
+Game result: 1/2-1/2
+
+Position 8:
+FEN: r2qk2r/ppp1bppp/1nnpp3/4P2b/3P1B2/5N1P/PPP1BPP1/RN1Q1RK1 w kq - 3 10
+Magnus move: c3
+LC0 preferred: e5d6
+Opening: Unknown
+Date: 2001.01.06
+Game result: 0-1
+
+Position 9:
+FEN: r2q1rk1/ppp1bppp/1nn1p3/3pP2b/3P1B2/2P2N1P/PP1NBPP1/R2Q1RK1 w - - 0 12
+Magnus move: b4
+LC0 preferred: f3e1
+Opening: Unknown
+Date: 2001.01.06
+Game result: 0-1
+
+Position 10:
+FEN: r2q1rk1/1pp1bppp/1nn1p3/p2pP2b/1P1P1B2/2P2N1P/P2NBPP1/R2Q1RK1 w - - 0 13
+Magnus move: a3
+LC0 preferred: b4b5
+Opening: Unknown
+Date: 2001.01.06
+Game result: 0-1
+
+RECOMMENDATIONS:
+---------------
+1. Focus training on middle game positions (moves 10-40)
+2. Use lower temperature for more decisive moves
+3. Increase weight on tactical positions
+4. Consider Magnus's opening repertoire bias
