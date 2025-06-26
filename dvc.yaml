@@ -1,0 +1,43 @@
+stages:
+  data_preparation:
+    cmd: python src/data/prepare_data.py
+    deps:
+    - src/data/carlsen-games.pgn
+    - src/data/prepare_data.py
+    outs:
+    - src/data/processed/
+
+  train_fast_model:
+    cmd: python src/training/train_fast_magnus.py
+    deps:
+    - src/data/processed/
+    - src/training/train_fast_magnus.py
+    - src/mlops/mlops_enhanced_manager.py
+    outs:
+    - src/models/checkpoints/fast_model.pth
+    metrics:
+    - src/models/metrics/fast_model_metrics.json
+    params:
+    - configs/training_config.yaml:train_fast
+
+  train_enhanced_model:
+    cmd: python src/training/train_enhanced_magnus.py
+    deps:
+    - src/data/processed/
+    - src/training/train_enhanced_magnus.py
+    - src/mlops/mlops_enhanced_manager.py
+    outs:
+    - src/models/checkpoints/enhanced_model.pth
+    metrics:
+    - src/models/metrics/enhanced_model_metrics.json
+    params:
+    - configs/training_config.yaml:train_enhanced
+
+  evaluate_models:
+    cmd: python src/inference/evaluate_models.py
+    deps:
+    - src/models/checkpoints/
+    - src/inference/evaluate_models.py
+    - src/data/processed/test/
+    metrics:
+    - src/models/metrics/evaluation_results.json

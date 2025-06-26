@@ -1,0 +1,5 @@
+outs:
+- md5: 34b64458423e3bb2bb02825dd204a9cd
+  size: 1096279
+  hash: md5
+  path: carlsen-games-quarter.pgn

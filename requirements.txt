@@ -1,0 +1,56 @@
+# Core ML and Deep Learning
+torch>=2.0.0
+torchvision>=0.15.0
+torchaudio>=2.0.0
+numpy>=1.24.0
+pandas>=2.0.0
+scikit-learn>=1.3.0
+
+# MLOps and Experiment Tracking
+mlflow>=2.8.0
+dvc>=3.0.0
+wandb>=0.16.0
+
+# Chess and Game Processing
+python-chess>=1.999
+chess>=1.10.0
+
+# Data Processing and Visualization
+matplotlib>=3.7.0
+seaborn>=0.12.0
+plotly>=5.17.0
+jupyter>=1.0.0
+notebook>=7.0.0
+
+# API and Web Framework
+fastapi>=0.104.0
+uvicorn>=0.24.0
+pydantic>=2.5.0
+httpx>=0.25.0
+
+# Development and Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
+black>=23.9.0
+flake8>=6.1.0
+mypy>=1.6.0
+pre-commit>=3.5.0
+
+# Utilities
+tqdm>=4.66.0
+click>=8.1.0
+python-dotenv>=1.0.0
+pyyaml>=6.0.1
+requests>=2.31.0
+
+# Optional: Cloud Storage
+boto3>=1.29.0
+google-cloud-storage>=2.10.0
+
+# Optional: Advanced Visualization
+streamlit>=1.28.0
+dash>=2.14.0
+
+# Optional: GPU Acceleration
+# torchtext>=0.16.0
+# transformers>=4.35.0

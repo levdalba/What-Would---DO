@@ -1,0 +1,5 @@
+outs:
+- md5: 79b6f7547f75856cc71f6a41695549eb
+  size: 4713092
+  hash: md5
+  path: carlsen-games.pgn

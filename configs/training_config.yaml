@@ -1,0 +1,45 @@
+train_fast:
+  epochs: 30
+  batch_size: 512
+  learning_rate: 0.003
+  model_name: "fast_magnus"
+  experiment_name: "fast_training"
+  hidden_dim: 256
+  num_layers: 4
+  dropout: 0.1
+  scheduler: "cosine"
+  warmup_steps: 200
+  
+train_enhanced:
+  epochs: 100
+  batch_size: 256
+  learning_rate: 0.001
+  model_name: "enhanced_magnus"
+  experiment_name: "enhanced_training"
+  hidden_dim: 512
+  num_layers: 8
+  dropout: 0.2
+  scheduler: "cosine"
+  warmup_steps: 500
+  early_stopping_patience: 10
+  
+data:
+  pgn_file: "src/data/carlsen-games.pgn"
+  quarter_file: "src/data/carlsen-games-quarter.pgn"
+  min_game_moves: 10
+  max_game_moves: 200
+  train_split: 0.7
+  val_split: 0.15
+  test_split: 0.15
+  
+mlops:
+  enable_dvc: true
+  enable_git: true
+  enable_cloud_backup: false
+  mlflow_tracking_uri: "mlruns"
+  model_registry: "src/models/registry"
+  
+inference:
+  top_k_moves: 5
+  temperature: 0.8
+  beam_size: 3
