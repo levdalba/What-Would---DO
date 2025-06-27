@@ -6,7 +6,7 @@ import type {
 // Configuration for different AI services
 const API_CONFIG = {
     magnus: {
-        endpoint: 'http://localhost:8000/predict', // Updated to use localhost
+        endpoint: 'http://localhost:8000/predict-magnus-style', // Magnus style endpoint
     },
     chatgpt: {
         endpoint:
@@ -25,6 +25,17 @@ interface PredictionResponse {
     confidence: number
 }
 
+interface MagnusStyleResponse {
+    top_moves: Array<{
+        move: string
+        probability: number
+        san: string
+    }>
+    magnus_choice: string
+    confidence: number
+    explanation: string
+}
+
 /**
  * Predicts the next move using the trained Magnus Carlsen model
  */
@@ -34,14 +45,11 @@ export const predictMagnusMove = async (
     console.log('Attempting to predict move for FEN:', boardFen)
 
     try {
-        // The issue is CORS preflight - your server needs to handle OPTIONS requests
-        // Let's try a different approach first
         const response = await fetch(API_CONFIG.magnus.endpoint, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            // Remove Accept header to avoid triggering CORS preflight
             body: JSON.stringify({
                 board: boardFen,
             }),
@@ -55,16 +63,23 @@ export const predictMagnusMove = async (
             )
         }
 
-        const data: PredictionResponse = await response.json()
-        console.log('Received prediction:', data)
-        return data
+        const data: MagnusStyleResponse = await response.json()
+        console.log('Received Magnus prediction:', data)
+
+        // Convert Magnus response format to the expected PredictionResponse format
+        const result: PredictionResponse = {
+            predicted_move: data.magnus_choice,
+            confidence: data.confidence, // Already in percentage format
+        }
+
+        return result
     } catch (error) {
         console.error('Error predicting move:', error)
 
         // Provide specific CORS error information
         if (error instanceof TypeError && error.message.includes('fetch')) {
             throw new Error(
-                'CORS Error: Your API server at http://10.224.9.93:8000 needs to:\n1. Handle OPTIONS requests\n2. Include CORS headers\n3. Accept POST requests to /predict'
+                'CORS Error: Your API server at http://localhost:8000 needs to:\n1. Handle OPTIONS requests\n2. Include CORS headers\n3. Accept POST requests to /predict-magnus-style'
             )
         }
 

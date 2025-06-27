@@ -1,7 +1,8 @@
 from fastapi import FastAPI, HTTPException, File, UploadFile
 from pydantic import BaseModel, ConfigDict
 from typing import List
-from data_processing.v2.lc0_inference import LC0ChessPredictor
+import chess
+import chess.engine
 from data_processing.v2.chess_ocr import ChessBoardOCR
 from fastapi.middleware.cors import CORSMiddleware
 import os
@@ -13,9 +14,74 @@ from pathlib import Path
 # Load environment variables from .env file
 load_dotenv()
 
+
+class StockfishPredictor:
+    """Chess move predictor using Stockfish engine"""
+
+    def __init__(self, stockfish_path="/opt/homebrew/bin/stockfish", time_limit=1.0):
+        """Initialize Stockfish predictor"""
+        self.stockfish_path = stockfish_path
+        self.time_limit = time_limit
+        self.engine = None
+
+        # Test if Stockfish is available
+        try:
+            self.engine = chess.engine.SimpleEngine.popen_uci(stockfish_path)
+            print(f"Stockfish Chess Predictor initialized:")
+            print(f"  Engine: {stockfish_path}")
+            print(f"  Time limit: {time_limit}s")
+        except Exception as e:
+            print(f"❌ Failed to initialize Stockfish: {e}")
+            raise
+
+    def predict_move_uci(self, fen_string):
+        """Predict best move for given FEN position"""
+        try:
+            board = chess.Board(fen_string)
+
+            if not board.legal_moves:
+                return "0000", 0.0
+
+            # Get best move from Stockfish
+            result = self.engine.play(board, chess.engine.Limit(time=self.time_limit))
+
+            if result.move:
+                # Calculate confidence based on evaluation
+                info = self.engine.analyse(
+                    board, chess.engine.Limit(time=self.time_limit)
+                )
+                score = info.get(
+                    "score", chess.engine.PovScore(chess.engine.Cp(0), chess.WHITE)
+                )
+
+                # Convert score to confidence (0-1 range)
+                if score.is_mate():
+                    confidence = 0.95  # High confidence for mate
+                else:
+                    # Normalize centipawn score to confidence
+                    cp_score = abs(score.white().score(mate_score=10000))
+                    confidence = min(0.9, 0.5 + (cp_score / 2000))  # Scale 0.5-0.9
+
+                return result.move.uci(), confidence
+            else:
+                return "0000", 0.0
+
+        except Exception as e:
+            print(f"Stockfish prediction error: {e}")
+            return "0000", 0.0
+
+    def __del__(self):
+        """Clean up engine"""
+        if self.engine:
+            try:
+                self.engine.quit()
+            except:
+                pass
+
+
 app = FastAPI(
-    title="Chess AI API with LC0 and Magnus Style",
-    description="API for professional chess move prediction using Leela Chess Zero neural network and Magnus Carlsen style prediction",
+    title="Chess AI API with Stockfish and Magnus Style",
+    description="API for professional chess move prediction using Stockfish engine and Magnus Carlsen style neural network fine-tuned on Magnus games",
     version="2.1.0",
 )
 
@@ -28,30 +94,34 @@ app.add_middleware(
 )
 
 # Initialize the chess models and OCR globally
-# Primary: Leela Chess Zero for strong analysis
-chess_predictor = LC0ChessPredictor(
-    lc0_path="/opt/homebrew/Cellar/lc0/0.31.2/libexec/lc0",
-    weights_path="/opt/homebrew/Cellar/lc0/0.31.2/libexec/42850.pb.gz",
+# Primary: Stockfish for strong analysis
+chess_predictor = StockfishPredictor(
+    stockfish_path="/opt/homebrew/bin/stockfish",
     time_limit=1.0,  # 1 second analysis time for responsive API
 )
 
 # Optional: Magnus Carlsen style predictor
 magnus_predictor = None
 try:
-    from data_processing.v2.improved_magnus_training import MagnusStylePredictor
+    from advanced_magnus_predictor import AdvancedMagnusPredictor
 
-    magnus_model_path = Path("data_processing/v2/models/magnus_style_model")
-    if magnus_model_path.exists():
-        magnus_predictor = MagnusStylePredictor(str(magnus_model_path))
-        print("Magnus Carlsen style predictor loaded successfully")
+    magnus_predictor = AdvancedMagnusPredictor()
+    if magnus_predictor.model is not None:
+        print(
+            "✅ Advanced Magnus Carlsen predictor loaded successfully (2.65M parameters)"
+        )
+        print(f"   Device: {magnus_predictor.device}")
+        print(f"   Vocabulary size: {magnus_predictor.vocab_size}")
     else:
-        print("Magnus model not found - train using improved_magnus_training.py")
+        print("❌ Advanced Magnus model not loaded properly")
+        magnus_predictor = None
 except ImportError as e:
     print(f"Magnus predictor dependencies not available: {e}")
     print("To enable Magnus style prediction, install: pip install torch scikit-learn")
+    magnus_predictor = None
 
 chess_ocr = ChessBoardOCR()
-print(f"LC0 Chess Predictor initialized")
+print(f"Stockfish Chess Predictor initialized")
 print(f"Chess OCR initialized")
 
 
@@ -136,10 +206,10 @@ def get_model_metadata() -> ModelMetadata:
     """
 
     return ModelMetadata(
-        model_name="LC0 + Magnus Style Hybrid",
+        model_name="Stockfish + Magnus Style Hybrid",
         version="2.1.0",
-        accuracy=0.98,  # LC0 is extremely strong
-        tags=["lc0", "neural-network", "chess-engine", "leela"],
+        accuracy=0.98,  # Stockfish is extremely strong (~3500 ELO)
+        tags=["stockfish", "chess-engine", "magnus-carlsen", "neural-network"],
     )
 
 
@@ -208,8 +278,8 @@ def predict_magnus_style(request: BoardInput) -> MagnusStyleResponse:
         # Create board from FEN
         board = chess.Board(request.board)
 
-        # Get Magnus style predictions
-        predictions = magnus_predictor.predict_move(board, top_k=5)
+        # Get Magnus style predictions (now prioritizes best moves with style flavor)
+        predictions = magnus_predictor.predict_moves(board, top_k=5)
 
         if not predictions:
             raise HTTPException(
@@ -220,21 +290,33 @@ def predict_magnus_style(request: BoardInput) -> MagnusStyleResponse:
         # Format response
         top_moves = [
             {
-                "move": move_uci,
-                "probability": prob,
-                "san": board.san(chess.Move.from_uci(move_uci)),
+                "move": pred["move"],
+                "probability": round(
+                    pred["confidence"] * 100, 2
+                ),  # Convert to percentage and round to 2 decimals
+                "san": pred.get(
+                    "san",
+                    (
+                        board.san(chess.Move.from_uci(pred["move"]))
+                        if pred["move"]
+                        else ""
+                    ),
+                ),
             }
-            for move_uci, prob in predictions
+            for pred in predictions
+            if pred.get("move")
         ]
 
-        magnus_choice = predictions[0][0]  # Top move
-        confidence = predictions[0][1]  # Top move probability
+        magnus_choice = predictions[0]["move"] if predictions else ""  # Top move
+        confidence = (
+            round(predictions[0]["confidence"] * 100, 2) if predictions else 0.0
+        )  # Convert to percentage and round to 2 decimals
 
         return MagnusStyleResponse(
             top_moves=top_moves,
             magnus_choice=magnus_choice,
-            confidence=confidence,
-            explanation=f"Moves predicted in Magnus Carlsen's playing style. Top choice: {board.san(chess.Move.from_uci(magnus_choice))} with {confidence:.1%} confidence.",
+            confidence=round(confidence, 2),
+            explanation=f"Moves predicted in Magnus Carlsen's playing style. Top choice: {board.san(chess.Move.from_uci(magnus_choice))} with {confidence:.2f}% confidence.",
         )
 
     except Exception as e:
@@ -245,7 +327,7 @@ def predict_magnus_style(request: BoardInput) -> MagnusStyleResponse:
 @app.post("/predict-combined", response_model=CombinedPredictionResponse)
 def predict_combined(request: BoardInput) -> CombinedPredictionResponse:
     """
-    Get both LC0 engine analysis and Magnus Carlsen style predictions.
+    Get both Stockfish engine analysis and Magnus Carlsen style predictions.
 
     Args:
         request (BoardInput): The input FEN string for the current chess board.
@@ -256,43 +338,71 @@ def predict_combined(request: BoardInput) -> CombinedPredictionResponse:
     try:
         import chess
 
-        # Get LC0 analysis
-        lc0_move, lc0_confidence = chess_predictor.predict_move_uci(request.board)
+        # Get Stockfish analysis
+        stockfish_move, stockfish_confidence = chess_predictor.predict_move_uci(
+            request.board
+        )
         lc0_analysis = PredictionResponse(
-            predicted_move=lc0_move, confidence=lc0_confidence
+            predicted_move=stockfish_move, confidence=stockfish_confidence
         )
 
         # Get Magnus style analysis (if available)
         if magnus_predictor is not None:
             board = chess.Board(request.board)
-            magnus_predictions = magnus_predictor.predict_move(board, top_k=3)
+            magnus_predictions = magnus_predictor.predict_moves(board, top_k=3)
 
             top_moves = [
                 {
-                    "move": move_uci,
-                    "probability": prob,
-                    "san": board.san(chess.Move.from_uci(move_uci)),
+                    "move": pred["move"],
+                    "probability": round(
+                        pred["confidence"] * 100, 2
+                    ),  # Convert to percentage and round to 2 decimals
+                    "san": pred.get(
+                        "san",
+                        (
+                            board.san(chess.Move.from_uci(pred["move"]))
+                            if pred["move"]
+                            else ""
+                        ),
+                    ),
                 }
-                for move_uci, prob in magnus_predictions
+                for pred in magnus_predictions
+                if pred.get("move")
             ]
 
             magnus_style = MagnusStyleResponse(
                 top_moves=top_moves,
-                magnus_choice=magnus_predictions[0][0],
-                confidence=magnus_predictions[0][1],
-                explanation=f"Magnus style analysis with {len(magnus_predictions)} candidate moves",
+                magnus_choice=(
+                    magnus_predictions[0]["move"] if magnus_predictions else ""
+                ),
+                confidence=(
+                    round(magnus_predictions[0]["confidence"] * 100, 2)
+                    if magnus_predictions
+                    else 0.0
+                ),  # Convert to percentage and round to 2 decimals
+                explanation=f"Advanced Magnus model analysis with {len(magnus_predictions)} candidate moves",
             )
 
             # Compare predictions
-            magnus_top_move = magnus_predictions[0][0]
+            magnus_top_move = (
+                magnus_predictions[0]["move"] if magnus_predictions else ""
+            )
             comparison = {
-                "engines_agree": lc0_move == magnus_top_move,
-                "lc0_move_san": board.san(chess.Move.from_uci(lc0_move)),
-                "magnus_move_san": board.san(chess.Move.from_uci(magnus_top_move)),
+                "engines_agree": stockfish_move == magnus_top_move,
+                "lc0_move_san": (
+                    board.san(chess.Move.from_uci(stockfish_move))
+                    if stockfish_move
+                    else ""
+                ),
+                "magnus_move_san": (
+                    board.san(chess.Move.from_uci(magnus_top_move))
+                    if magnus_top_move
+                    else ""
+                ),
                 "analysis": (
-                    "LC0 and Magnus agree on the best move"
-                    if lc0_move == magnus_top_move
-                    else "LC0 and Magnus suggest different moves - interesting position!"
+                    "Stockfish and Advanced Magnus agree on the best move"
+                    if stockfish_move == magnus_top_move
+                    else "Stockfish and Advanced Magnus suggest different moves - interesting position!"
                 ),
             }
         else:
@@ -306,7 +416,7 @@ def predict_combined(request: BoardInput) -> CombinedPredictionResponse:
                 "engines_agree": False,
                 "lc0_move_san": "",
                 "magnus_move_san": "",
-                "analysis": "Only LC0 analysis available",
+                "analysis": "Only Stockfish analysis available",
             }
 
         return CombinedPredictionResponse(
@@ -315,6 +425,84 @@ def predict_combined(request: BoardInput) -> CombinedPredictionResponse:
 
     except Exception as e:
         print(f"Error in combined prediction: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+@app.post("/predict-magnus-enhanced", response_model=MagnusStyleResponse)
+def predict_magnus_enhanced(request: BoardInput) -> MagnusStyleResponse:
+    """
+    Predict moves in Magnus Carlsen's style enhanced with engine analysis for better quality.
+
+    Args:
+        request (BoardInput): The input FEN string for the current chess board.
+
+    Returns:
+        MagnusStyleResponse: Top moves with probabilities in Magnus's style, enhanced with engine guidance.
+    """
+    if magnus_predictor is None:
+        raise HTTPException(
+            status_code=501,
+            detail="Magnus style model not available. Train the model using improved_magnus_training.py",
+        )
+
+    try:
+        import chess
+
+        # Validate FEN string
+        if not request.board or not request.board.strip():
+            raise HTTPException(
+                status_code=400, detail="Board FEN string cannot be empty"
+            )
+
+        # Create board from FEN
+        board = chess.Board(request.board)
+
+        # Get enhanced Magnus style predictions with engine guidance
+        predictions = magnus_predictor.predict_moves_with_engine_guidance(
+            board, top_k=5
+        )
+
+        if not predictions:
+            raise HTTPException(
+                status_code=400,
+                detail="No valid Magnus-style moves found for the given position",
+            )
+
+        # Format response
+        top_moves = [
+            {
+                "move": pred["move"],
+                "probability": round(pred["confidence"] * 100, 2),
+                "san": pred.get(
+                    "san",
+                    (
+                        board.san(chess.Move.from_uci(pred["move"]))
+                        if pred["move"]
+                        else ""
+                    ),
+                ),
+                "magnus_confidence": round(pred.get("magnus_confidence", 0) * 100, 2),
+                "engine_confidence": round(pred.get("engine_confidence", 0) * 100, 2),
+                "style": pred.get("style", "magnus_enhanced"),
+            }
+            for pred in predictions
+            if pred.get("move")
+        ]
+
+        magnus_choice = predictions[0]["move"] if predictions else ""
+        confidence = (
+            round(predictions[0]["confidence"] * 100, 2) if predictions else 0.0
+        )
+
+        return MagnusStyleResponse(
+            top_moves=top_moves,
+            magnus_choice=magnus_choice,
+            confidence=confidence,
+            explanation=f"Enhanced Magnus predictions combining style with chess principles. Top choice: {board.san(chess.Move.from_uci(magnus_choice))} with {confidence:.2f}% confidence (Magnus style + engine guidance).",
+        )
+
+    except Exception as e:
+        print(f"Error in enhanced Magnus style prediction: {e}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
